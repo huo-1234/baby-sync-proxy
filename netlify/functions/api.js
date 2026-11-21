@@ -86,6 +86,10 @@ exports.handler = async (event) => {
             outHeaders[k] = Array.isArray(v) ? v.join(", ") : v;
           }
           outHeaders["access-control-allow-origin"] = "*";
+          // 禁止任何中间层缓存：缓存会返回旧内容（旧版本是压缩的，会乱码）
+          outHeaders["cache-control"] = "no-store, no-cache, must-revalidate";
+          delete outHeaders["etag"];
+          delete outHeaders["last-modified"];
 
           // 判断是否二进制：图片/视频等才用 base64，
           // JSON 文本必须原样返回，否则 App 解析会得到乱码
