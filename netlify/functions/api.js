@@ -57,11 +57,12 @@ exports.handler = async (event) => {
         res.on("end", () => {
           let buf = Buffer.concat(chunks);
 
-          // 保险：万一上游仍返回压缩内容，这里主动解压，
-          // 保证交给客户端的一定是明文，不会出现乱码。
+          // 上游若返回压缩内容，先解压成明文。
+          // 之后由 Netlify 边缘统一处理压缩，并会正确带上 content-encoding，
+          // OkHttp 才能识别并解压。
           const enc = String(res.headers["content-encoding"] || "").toLowerCase();
           try {
-            if (enc.includes("gzip") || (buf[0] === 0x1f && buf[1] === 0x8b)) {
+            if (enc.includes("gzip") || (buf.length > 2 && buf[0] === 0x1f && buf[1] === 0x8b)) {
               buf = zlib.gunzipSync(buf);
             } else if (enc.includes("deflate")) {
               buf = zlib.inflateSync(buf);
@@ -69,27 +70,27 @@ exports.handler = async (event) => {
               buf = zlib.brotliDecompressSync(buf);
             }
           } catch (e) {
-            // 解压失败就原样返回，交给客户端处理
+            // 解压失败就原样返回
           }
 
           const outHeaders = {};
           for (const [k, v] of Object.entries(res.headers)) {
             const lk = k.toLowerCase();
-            // 内容已解压，这几个头必须去掉，否则客户端会误解
+            // content-encoding/content-length 必须去掉：
+            // 内容已被我们解压，长度也变了，留着会让客户端二次误解
             if (
               lk === "content-encoding" ||
               lk === "content-length" ||
-              lk === "transfer-encoding"
+              lk === "transfer-encoding" ||
+              lk === "etag" ||
+              lk === "last-modified"
             ) {
               continue;
             }
             outHeaders[k] = Array.isArray(v) ? v.join(", ") : v;
           }
           outHeaders["access-control-allow-origin"] = "*";
-          // 禁止任何中间层缓存：缓存会返回旧内容（旧版本是压缩的，会乱码）
           outHeaders["cache-control"] = "no-store, no-cache, must-revalidate";
-          delete outHeaders["etag"];
-          delete outHeaders["last-modified"];
 
           // 判断是否二进制：图片/视频等才用 base64，
           // JSON 文本必须原样返回，否则 App 解析会得到乱码
