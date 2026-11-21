@@ -51,15 +51,33 @@ exports.handler = async (event) => {
           const buf = Buffer.concat(chunks);
           const outHeaders = {};
           for (const [k, v] of Object.entries(res.headers)) {
-            if (["content-encoding", "content-length", "transfer-encoding"].includes(k)) continue;
+            const lk = k.toLowerCase();
+            // 这几个头必须去掉：内容已解压，长度已变，压缩头会误导客户端
+            if (
+              lk === "content-encoding" ||
+              lk === "content-length" ||
+              lk === "transfer-encoding"
+            ) {
+              continue;
+            }
             outHeaders[k] = Array.isArray(v) ? v.join(", ") : v;
           }
           outHeaders["access-control-allow-origin"] = "*";
+
+          // 判断是否二进制：图片/视频等才用 base64，
+          // JSON 文本必须原样返回，否则 App 解析会得到乱码
+          const ctype = String(res.headers["content-type"] || "");
+          const isText =
+            ctype.startsWith("application/json") ||
+            ctype.startsWith("text/") ||
+            ctype.includes("json") ||
+            ctype === "";
+
           resolve({
             statusCode: res.statusCode || 500,
             headers: outHeaders,
-            body: buf.toString("base64"),
-            isBase64Encoded: true,
+            body: isText ? buf.toString("utf8") : buf.toString("base64"),
+            isBase64Encoded: !isText,
           });
         });
       }
