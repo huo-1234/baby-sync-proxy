@@ -5,6 +5,7 @@
 // 用 export default 会被 Node 当语法错误，函数会静默构建失败。
 
 const https = require("https");
+const zlib = require("zlib");
 
 const SUPABASE_HOST = "hggrufjzjdbwcrnejagz.supabase.co";
 
@@ -20,11 +21,17 @@ exports.handler = async (event) => {
   const qs = event.rawQuery ? "?" + event.rawQuery : "";
   const targetPath = path + qs;
 
-  // 转发原始请求头，剔除会干扰的
+  // 转发原始请求头
   const headers = {};
   for (const [k, v] of Object.entries(event.headers || {})) {
     const key = k.toLowerCase();
+    // host/connection 由 Node 自己处理；content-length 会因为后续处理而变化
     if (key === "host" || key === "connection" || key === "content-length") continue;
+    // 关键：不转发 accept-encoding。
+    // 若让 Supabase 返回 gzip，而我们又要去掉 content-encoding 头，
+    // 客户端拿到的是压缩字节却没有解压标志，就会解析成乱码。
+    // 数据库记录是文本，不压缩也没多少流量。
+    if (key === "accept-encoding") continue;
     headers[k] = v;
   }
   headers["host"] = SUPABASE_HOST;
@@ -48,11 +55,27 @@ exports.handler = async (event) => {
         const chunks = [];
         res.on("data", (c) => chunks.push(c));
         res.on("end", () => {
-          const buf = Buffer.concat(chunks);
+          let buf = Buffer.concat(chunks);
+
+          // 保险：万一上游仍返回压缩内容，这里主动解压，
+          // 保证交给客户端的一定是明文，不会出现乱码。
+          const enc = String(res.headers["content-encoding"] || "").toLowerCase();
+          try {
+            if (enc.includes("gzip") || (buf[0] === 0x1f && buf[1] === 0x8b)) {
+              buf = zlib.gunzipSync(buf);
+            } else if (enc.includes("deflate")) {
+              buf = zlib.inflateSync(buf);
+            } else if (enc.includes("br")) {
+              buf = zlib.brotliDecompressSync(buf);
+            }
+          } catch (e) {
+            // 解压失败就原样返回，交给客户端处理
+          }
+
           const outHeaders = {};
           for (const [k, v] of Object.entries(res.headers)) {
             const lk = k.toLowerCase();
-            // 这几个头必须去掉：内容已解压，长度已变，压缩头会误导客户端
+            // 内容已解压，这几个头必须去掉，否则客户端会误解
             if (
               lk === "content-encoding" ||
               lk === "content-length" ||
