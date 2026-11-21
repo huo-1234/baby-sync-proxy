@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>成长日记 · 同步中转</title>
+<style>
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+background:#FDFBF7;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#2C2C2A}
+.box{max-width:400px;padding:32px 26px;text-align:center}
+h1{font-size:20px;font-weight:600;margin:0 0 6px}
+.ok{color:#3E7A62;font-size:14px;font-weight:500;margin:0 0 14px}
+p{font-size:13.5px;line-height:1.7;color:#6B6A66;margin:0 0 4px}
+code{display:block;margin-top:16px;padding:12px;background:#F1EFE8;border-radius:10px;
+font-size:12px;color:#3F3D38;word-break:break-all;text-align:left}
+</style>
+</head>
+<body>
+<div class="box">
+  <h1>成长日记 · 同步中转</h1>
+  <p class="ok">服务运行中</p>
+  <p>把这个地址填进 App 的「项目地址」：</p>
+  <code id="u"></code>
+</div>
+<script>document.getElementById('u').textContent = location.origin;</script>
+</body>
+</html>
