@@ -1,0 +1,6 @@
+{
+  "name": "baby-sync-proxy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Supabase 反向代理，解决国内直连问题"
+}

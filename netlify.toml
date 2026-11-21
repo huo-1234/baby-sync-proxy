@@ -2,6 +2,11 @@
   publish = "public"
   functions = "netlify/functions"
 
+[functions]
+  node_bundler = "esbuild"
+  included_files = ["netlify/functions/**"]
+
+# 把 /api/* 交给函数处理
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/api/:splat"
